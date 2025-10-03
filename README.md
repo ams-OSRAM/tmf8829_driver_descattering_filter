@@ -31,38 +31,50 @@ void setDescatterThreshold ( uint16_t threshold )
 Step 2 - Removed false detects from (descatter) results
 -------------------------------------------------------
 
-The objects are stored in four arrays:  
+The objects are stored in two arrays:  
 
-  - itsObject0Distance / itsObject1Distance for the distances per zone (max. two objects per zone)
-  - itsObject1Confidence / itsObject1Confidence for the confidences of these objects
+  - itsDistance for the distances per zone (max. four objects per zone)
+  - itsConfidence for the confidences of these objects
   
   1. reset the descattering filter
   2. add all objects with their matching confidence to the descattering filter data set
   3. check all objects if they have to be removed (confidence to zero)
   
 ```C
-void descatterResults ( void )
+void FrameParser::doDescattering()
 {
-    descatterReset();
+    descatterConfigure( itsDescatteringThreshold, TMF8XXX_DESCATTER_MAX_DISTANCE_MM );
 
-    for ( uint32_t currentPixel = 0; currentPixel < TMF8820C_NUMBER_OF_PIXELS; ++currentPixel )
+    for ( int object = 0; object < itsNumberOfPeaks; ++object )
     {
-        descatteraddObjectPeak(itsObject0Distance[currentPixel],mapConfidence(itsObject0Confidence[currentPixel]));
-        descatteraddObjectPeak(itsObject1Distance[currentPixel],mapConfidence(itsObject1Confidence[currentPixel]));
-    }
-
-    for ( uint32_t currentPixel = 0; currentPixel < TMF8820C_NUMBER_OF_PIXELS; ++currentPixel )
-    {
-        if ( descatterIsScatteringPeak(itsObject0Distance[currentPixel],mapConfidence(itsObject0Confidence[currentPixel])))
+        for ( int row = 0; row < (int)itsRows; ++row )
         {
-            itsObject0Confidence[currentPixel] = 0;
-        }
-        if ( descatterIsScatteringPeak(itsObject1Distance[currentPixel],mapConfidence(itsObject1Confidence[currentPixel])))
-        {
-            itsObject1Confidence[currentPixel] = 0;
+            for ( int col = 0; col < (int)itsCols; ++col )
+            {
+                descatteraddObjectPeak( itsDistance[row][col][object], mapConfidence( itsConfidence[row][col][object], false ));
+            }
         }
     }
-}  
+
+    int removedPeaks = 0;
+
+    for ( int object = 0; object < itsNumberOfPeaks; ++object )
+    {
+        for ( int row = 0; row < (int)itsRows; ++row )
+        {
+            for ( int col = 0; col < (int)itsCols; ++col )
+            {
+                if ( descatterIsScatteringPeak(itsDistance[row][col][object], mapConfidence( itsConfidence[row][col][object], false )) == 1 )
+                {
+                    itsConfidence[row][col][object] = 0;
+                    ++removedPeaks;
+                }
+            }
+        }
+    }
+
+    qDebug() << QString::number(removedPeaks) << "objects removed.";
+}
 ```	
 
 Helper function for mapping of a linear confidence value to a logarithmic value:
@@ -71,21 +83,30 @@ Helper function for mapping of a linear confidence value to a logarithmic value:
 #define CONF_BREAKPOINT (40)
 #define EXP_GROWTH_RATE (1.053676f)
 
-uint16_t mapConfidence ( uint16_t confidence )
+uint16_t FrameParser::mapConfidence ( const uint8_t confidence, const bool limitTo8Bit )
 {
-    uint16_t exp_conf = 0;
+    uint32_t exponentialConfidence = 0;
 
     if (confidence <= CONF_BREAKPOINT)
     {
-        exp_conf = confidence;
+        exponentialConfidence = confidence;
     }
     else
     {
         /* exponential de-mapping */
-        const uint16_t steps = confidence - CONF_BREAKPOINT;
-        exp_conf = CONF_BREAKPOINT*pow(EXP_GROWTH_RATE,steps);
+        const uint32_t steps = confidence - CONF_BREAKPOINT;
+        exponentialConfidence = CONF_BREAKPOINT*pow(EXP_GROWTH_RATE,steps);
     }
 
-    return exp_conf;
+    if ( limitTo8Bit )
+    {
+        exponentialConfidence = ( exponentialConfidence > UINT8_MAX ? UINT8_MAX : exponentialConfidence );
+    }
+    else
+    {
+        exponentialConfidence = ( exponentialConfidence > UINT16_MAX ? UINT16_MAX : exponentialConfidence );
+    }
+
+    return static_cast<uint16_t>(exponentialConfidence);
 }
 ```	
