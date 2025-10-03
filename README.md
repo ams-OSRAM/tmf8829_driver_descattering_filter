@@ -1,4 +1,4 @@
-TMF8828 Descattering Filter
+TMF8829 Descattering Filter
 ===========================
 
 Step 0 - setup
