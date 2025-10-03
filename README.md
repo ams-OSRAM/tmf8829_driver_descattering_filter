@@ -4,7 +4,7 @@ TMF8828 Descattering Filter
 Step 0 - setup
 --------------
 
-Please find the source code for the de-scattering filter in the same ZIP archive as this document.
+Please find the source code for the de-scattering filter in the same repository / ZIP archive as this document.
 You need to include source code and header file into your driver project.
 
 Step 1 - Configure the descattering filter
@@ -16,7 +16,7 @@ Run:
     descatterConfigure(DESCATTER_THRESHOLD_DEFAULT,DESCATTER_RANGE_MM);
 ```	
 
-The default threshold is 5, the default range is 5000mm.
+The default threshold is 5, the default range is 10000mm.
 
 If you want to change the threshold later use this:
 
